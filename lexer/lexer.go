@@ -43,6 +43,19 @@ func (l *Lexer) NextToken() token.Token {
 		} else {
 			tok = newToken(token.ILLEGAL, l.ch, l.line)
 		}
+	case '.':
+		l.readChar()
+		if isVarTer(l.ch) {
+			tok.Literal = l.readIdentifier()
+			tok.Type = token.LookupDirective(strings.ToLower(tok.Literal))
+			tok.Line = l.line
+			return tok
+		} else {
+			tok = newToken(token.ILLEGAL, l.ch, l.line)
+		}
+	case ';':
+		tok = newToken(token.COMMENT, l.ch, l.line)
+		l.skipUntilNewline()
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF
@@ -106,6 +119,12 @@ func (l *Lexer) readNumber() string {
 		l.readChar()
 	}
 	return l.input[position:l.position]
+}
+
+func (l *Lexer) skipUntilNewline() {
+	for l.ch != '\n' && l.ch != 0 {
+		l.readChar()
+	}
 }
 
 func isVarTer(ch byte) bool {

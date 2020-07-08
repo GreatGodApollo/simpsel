@@ -6,10 +6,15 @@ const (
 	ILLEGAL = "ILLEGAL"
 	EOF     = "EOF"
 	IDENT   = "IDENT"
+	COMMENT = "COMMENT"
 
 	// Identifiers & Literals
 	INT      = "INT"      // #10, #2, #30
 	REGISTER = "REGISTER" // $10, $1, $0
+
+	// Directives
+	CODE = "CODE"
+	DATA = "DATA"
 
 	// Opcodes
 	LOAD = "LOAD"
@@ -57,8 +62,20 @@ var keywords = map[string]TokenType{
 	"nop":  NOP,
 }
 
+var directives = map[string]TokenType{
+	"code": CODE,
+	"data": DATA,
+}
+
 func LookupIdent(ident string) TokenType {
 	if tok, ok := keywords[ident]; ok {
+		return tok
+	}
+	return ILLEGAL
+}
+
+func LookupDirective(ident string) TokenType {
+	if tok, ok := directives[ident]; ok {
 		return tok
 	}
 	return ILLEGAL

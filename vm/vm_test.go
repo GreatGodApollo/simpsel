@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"bytes"
 	"fmt"
 	"simpsel/ast"
 	"simpsel/compiler"
@@ -45,7 +46,7 @@ func runVmTests(t *testing.T, tests []vmTestCase) {
 		vm := New(comp.Bytecode())
 
 		for i := 0; i < tt.numInst; i ++ {
-			vm.executeInstruction()
+			vm.executeInstruction(bytes.NewBuffer([]byte{}))
 		}
 
 		reg31 := vm.Registers[31]

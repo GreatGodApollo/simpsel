@@ -56,33 +56,38 @@ func New(l *lexer.Lexer) *Parser {
 		opCodeParseFns: make(map[token.TokenType]opCodeParseFn),
 	}
 
+	// Ignore comments bb
+	p.registerParseFn(token.COMMENT, p.parseIgnore)
+
+	// directive
+
 	// op
-	p.registerOpcode(token.HLT, p.parseBlank)
-	p.registerOpcode(token.ILLEGAL, p.parseBlank)
-	p.registerOpcode(token.NOP, p.parseBlank)
+	p.registerParseFn(token.HLT, p.parseBlank)
+	p.registerParseFn(token.ILLEGAL, p.parseBlank)
+	p.registerParseFn(token.NOP, p.parseBlank)
 
 	// op $Reg
-	p.registerOpcode(token.JMP, p.parseRegister)
-	p.registerOpcode(token.JMPF, p.parseRegister)
-	p.registerOpcode(token.JMPB, p.parseRegister)
-	p.registerOpcode(token.JMPE, p.parseRegister)
+	p.registerParseFn(token.JMP, p.parseRegister)
+	p.registerParseFn(token.JMPF, p.parseRegister)
+	p.registerParseFn(token.JMPB, p.parseRegister)
+	p.registerParseFn(token.JMPE, p.parseRegister)
 
 	// op $Reg #Int
-	p.registerOpcode(token.LOAD, p.parseRegisterInt)
+	p.registerParseFn(token.LOAD, p.parseRegisterInt)
 
 	// op $Reg $Reg
-	p.registerOpcode(token.EQ, p.parseRegisterRegister)
-	p.registerOpcode(token.NEQ, p.parseRegisterRegister)
-	p.registerOpcode(token.GT, p.parseRegisterRegister)
-	p.registerOpcode(token.LT, p.parseRegisterRegister)
-	p.registerOpcode(token.GTE, p.parseRegisterRegister)
-	p.registerOpcode(token.LTE, p.parseRegisterRegister)
+	p.registerParseFn(token.EQ, p.parseRegisterRegister)
+	p.registerParseFn(token.NEQ, p.parseRegisterRegister)
+	p.registerParseFn(token.GT, p.parseRegisterRegister)
+	p.registerParseFn(token.LT, p.parseRegisterRegister)
+	p.registerParseFn(token.GTE, p.parseRegisterRegister)
+	p.registerParseFn(token.LTE, p.parseRegisterRegister)
 
 	// op $Reg $Reg $Reg
-	p.registerOpcode(token.ADD, p.parseRegisterRegisterRegister)
-	p.registerOpcode(token.SUB, p.parseRegisterRegisterRegister)
-	p.registerOpcode(token.MUL, p.parseRegisterRegisterRegister)
-	p.registerOpcode(token.DIV, p.parseRegisterRegisterRegister)
+	p.registerParseFn(token.ADD, p.parseRegisterRegisterRegister)
+	p.registerParseFn(token.SUB, p.parseRegisterRegisterRegister)
+	p.registerParseFn(token.MUL, p.parseRegisterRegisterRegister)
+	p.registerParseFn(token.DIV, p.parseRegisterRegisterRegister)
 
 	// Read two tokens, so both curToken and peekToken are set
 	p.nextToken()
@@ -124,12 +129,21 @@ func (p *Parser) peekError(t token.TokenType) {
 	p.errors = append(p.errors, msg)
 }
 
-func (p *Parser) noOpcodeParseFnError(t token.TokenType) {
-	msg := fmt.Sprintf("no opcode parse function for %s found", t)
+func (p *Parser) noParseFnError(t token.TokenType) {
+	msg := fmt.Sprintf("no parse function for %s found", t)
 	p.errors = append(p.errors, msg)
 }
 
-func (p *Parser) registerOpcode(tokenType token.TokenType, fn opCodeParseFn) {
+func (p *Parser) registerTooBigError(regNum uint8) bool {
+	if regNum > uint8(31) {
+		msg := fmt.Sprintf("register number too big, must be less than 32. got=%d", regNum)
+		p.errors = append(p.errors, msg)
+		return true
+	}
+	return false
+}
+
+func (p *Parser) registerParseFn(tokenType token.TokenType, fn opCodeParseFn) {
 	p.opCodeParseFns[tokenType] = fn
 }
 
@@ -151,7 +165,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 func (p *Parser) parseInstruction() ast.Instruction {
 	fn := p.opCodeParseFns[p.curToken.Type]
 	if fn == nil {
-		p.noOpcodeParseFnError(p.curToken.Type)
+		p.noParseFnError(p.curToken.Type)
 		return nil
 	}
 	inst := fn()
@@ -173,6 +187,10 @@ func (p *Parser) parseRegisterInt() ast.Instruction {
 	inst.Operand1 = &ast.RegisterLiteral{
 		Token: p.curToken,
 		Value: uint8(reg),
+	}
+
+	if p.registerTooBigError(byte(reg)) {
+		return nil
 	}
 
 	if !p.expectPeek(token.INT) {
@@ -208,6 +226,10 @@ func (p *Parser) parseRegisterRegisterRegister() ast.Instruction {
 		Value: byte(reg1),
 	}
 
+	if p.registerTooBigError(byte(reg1)) {
+		return nil
+	}
+
 	if !p.expectPeek(token.REGISTER) {
 		return nil
 	}
@@ -221,6 +243,10 @@ func (p *Parser) parseRegisterRegisterRegister() ast.Instruction {
 		Value: byte(reg2),
 	}
 
+	if p.registerTooBigError(byte(reg2)) {
+		return nil
+	}
+
 	if !p.expectPeek(token.REGISTER) {
 		return nil
 	}
@@ -232,6 +258,10 @@ func (p *Parser) parseRegisterRegisterRegister() ast.Instruction {
 	inst.Operand3 = &ast.RegisterLiteral{
 		Token: p.curToken,
 		Value: byte(reg3),
+	}
+
+	if p.registerTooBigError(byte(reg3)) {
+		return nil
 	}
 
 	return inst
@@ -263,6 +293,10 @@ func (p *Parser) parseRegister() ast.Instruction {
 		Value: uint8(reg),
 	}
 
+	if p.registerTooBigError(byte(reg)) {
+		return nil
+	}
+
 	inst.Operand2 = nil
 	inst.Operand3 = nil
 
@@ -285,6 +319,10 @@ func (p *Parser) parseRegisterRegister() ast.Instruction {
 		Value: uint8(reg1),
 	}
 
+	if p.registerTooBigError(byte(reg1)) {
+		return nil
+	}
+
 	if !p.expectPeek(token.REGISTER) {
 		return nil
 	}
@@ -298,8 +336,15 @@ func (p *Parser) parseRegisterRegister() ast.Instruction {
 		Value: uint8(reg2),
 	}
 
+	if p.registerTooBigError(byte(reg2)) {
+		return nil
+	}
+
 	inst.Operand3 = nil
 
 	return inst
 }
 
+func (p *Parser) parseIgnore() ast.Instruction {
+	return nil
+}

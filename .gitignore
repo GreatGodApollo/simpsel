@@ -114,3 +114,6 @@ modules.xml
 .idea/sonarlint
 
 # End of https://www.toptal.com/developers/gitignore/api/intellij+all,go
+
+# Ignore the ssh keys
+host.key*

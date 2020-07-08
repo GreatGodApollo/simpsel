@@ -2,6 +2,8 @@ package vm
 
 import (
 	"encoding/binary"
+	"fmt"
+	"io"
 	"simpsel/code"
 	"simpsel/compiler"
 )
@@ -24,18 +26,18 @@ func New(bytecode *compiler.Bytecode) *VM {
 	}
 }
 
-func (vm *VM) Run() {
+func (vm *VM) Run(out io.Writer) {
 	isDone := false
 	for !isDone {
-		isDone = vm.executeInstruction()
+		isDone = vm.executeInstruction(out)
 	}
 }
 
-func (vm *VM) RunOnce() {
-	vm.executeInstruction()
+func (vm *VM) RunOnce(out io.Writer) {
+	vm.executeInstruction(out)
 }
 
-func (vm *VM) executeInstruction() bool {
+func (vm *VM) executeInstruction(out io.Writer) bool {
 	if vm.Counter >= len(vm.Program) {
 		return true
 	}
@@ -62,10 +64,16 @@ func (vm *VM) executeInstruction() bool {
 		vm.Registers[vm.nextByte()] = register1 / register2
 		vm.Remainder = register1 % register2
 	case code.OpHlt:
-		println("HLT Encountered")
+		fmt.Fprintf(out, "HLT Encountered\n")
+		vm.nextByte() // Read bytes so REPL isn't messed up
+		vm.nextByte()
+		vm.nextByte()
 		return true
 	case code.OpIgl:
-		println("Illegal opcode @ " + string(vm.Counter))
+		fmt.Fprintf(out, "Illegal Opcode @ %d\n", vm.Counter - 1)
+		vm.nextByte() // Read bytes so REPL isn't messed up
+		vm.nextByte()
+		vm.nextByte()
 		return true
 	case code.OpJmp:
 		target := vm.Registers[vm.nextByte()]
